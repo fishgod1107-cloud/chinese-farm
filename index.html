@@ -222,6 +222,11 @@ h2{font-size:28px;margin:8px 0;color:var(--purple-d)}
 #mdl{position:fixed;inset:0;background:#4a3a5a88;z-index:50;display:none;align-items:center;justify-content:center;padding:16px}
 #mdl.on{display:flex}
 #mdlBody{max-width:560px;width:100%;max-height:88vh;overflow:auto;margin:0;animation:pop .25s}
+.cheer{position:fixed;left:50%;top:36%;z-index:80;text-align:center;background:#fffbe6;border:4px solid #ffd54f;border-radius:28px;padding:16px 30px;box-shadow:0 10px 30px #0003;pointer-events:none;animation:cheerPop 2.3s ease both;max-width:86vw}
+.cheer .ce{font-size:72px;line-height:1.1}.cheer .ct{font-size:30px;font-weight:700;color:#e65100}.cheer .cs{font-size:20px;color:#7a5c00}
+@keyframes cheerPop{0%{transform:translate(-50%,-50%) scale(.3);opacity:0}12%{transform:translate(-50%,-50%) scale(1.12);opacity:1}20%{transform:translate(-50%,-50%) scale(1)}85%{transform:translate(-50%,-50%) scale(1);opacity:1}100%{transform:translate(-50%,-50%) scale(1);opacity:0}}
+.stks{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;text-align:center;font-size:42px}.stks .no{opacity:.3;filter:grayscale(1)}
+@media(max-width:520px){.stks{grid-template-columns:repeat(4,1fr)}}
 #helpbtn{position:fixed;right:10px;bottom:10px;z-index:40;width:48px;height:48px;min-height:48px;padding:0;border-radius:50%;background:#7e57c2;color:#fff;font-size:24px;box-shadow:0 4px 0 #5e3fa0;opacity:.92}
 body[data-scr=mole] #helpbtn,body[data-scr=fish] #helpbtn,body[data-scr=fruit] #helpbtn,body[data-scr=spell] #helpbtn{display:none}
 .mic.on{animation:pulse 1s ease-in-out infinite;background:#ef5350;box-shadow:0 4px 0 #b71c1c}
@@ -491,7 +496,7 @@ const STEM={
 
 /* ===== 存檔 ===== */
 const KEY='idiomFarm.v1';
-const DEF=()=>({name:'JOJO',grade:1,coins:10,water:3,plots:[null,null,null,null],animals:[],stat:{},read:{},corr:0,rounds:0,harv:0,sound:true,voice:true,decor:[],ach:{},streak:0,last:'',perfect:0,bossWin:0,hc:{},inv:{},fxp:0,orders:[],work:[],quests:null,rain:'',ordDone:0,craftDone:0,gdaily:{},gbest:{},press:'all',exam:{best:{},hist:[],stat:{},wrong:[],mid:{}}});
+const DEF=()=>({name:'JOJO',grade:1,coins:10,water:3,plots:[null,null,null,null],animals:[],stat:{},read:{},corr:0,rounds:0,harv:0,sound:true,voice:true,decor:[],ach:{},streak:0,last:'',perfect:0,bossWin:0,hc:{},inv:{},fxp:0,orders:[],work:[],quests:null,rain:'',ordDone:0,craftDone:0,gdaily:{},gbest:{},stk:[],press:'all',exam:{best:{},hist:[],stat:{},wrong:[],mid:{}}});
 let S=load();
 function normSave(o){ // 舊存檔、備份還原:缺的欄位補預設值,壞掉的欄位換回預設
   const D=DEF(),d=Object.assign(D,o);
@@ -517,6 +522,7 @@ function normSave(o){ // 舊存檔、備份還原:缺的欄位補預設值,壞�
   ['stat','read','ach','hc','inv','gdaily','gbest'].forEach(k=>{if(!d[k]||typeof d[k]!=='object'||Array.isArray(d[k]))d[k]={}});
   ['decor','orders','work'].forEach(k=>{if(!Array.isArray(d[k]))d[k]=[]});
   if(![1,2,3].includes(d.grade))d.grade=1;
+  d.stk=Array.isArray(d.stk)?[...new Set(d.stk.filter(n=>Number.isInteger(n)&&n>=0&&n<24))]:[];
   d.press='all';
   return d;
 }
@@ -550,7 +556,8 @@ const CUTE=/HsiaoYu|曉雨|HsiaoChen|曉臻|Yating|雅婷|Hanhan|涵涵|Mei-?Jia
 function zhVoices(){try{return speechSynthesis.getVoices().filter(v=>/^(zh|cmn)/i.test(v.lang))}catch(e){return[]}}
 function bestVoice(){
   const vs=zhVoices();if(!vs.length)return null;
-  const tw=vs.filter(v=>/TW|Hant/i.test(v.lang)),pool=tw.length?tw:vs;
+  // 一定先挑台灣國語(zh-TW);沒有的話再用其他中文,但不用廣東話(zh-HK)的聲音
+  const tw=vs.filter(v=>/TW|Hant|Taiwan|台灣|臺灣/i.test(v.lang+' '+v.name)),other=vs.filter(v=>!/HK|yue|Cantonese|粵|廣東|香港/i.test(v.lang+' '+v.name)),pool=tw.length?tw:other.length?other:vs;
   return vs.find(v=>v.name===S.voiceName)||pool.find(v=>CUTE.test(v.name)&&/Natural|Online/i.test(v.name))||pool.find(v=>CUTE.test(v.name))||pool[0];
 }
 // 唸之前先整理文字:圖案換成名字、＿ 唸「空格」,其他圖示拿掉
@@ -566,7 +573,7 @@ function speak(t,force,done){ // force:按喇叭鈕時就算關掉自動唸題�
     // 一句一句唸:句子之間有自然的停頓,也避開有些瀏覽器長句唸到一半停掉的問題
     const parts=(speakable(t).match(/[^。！？；!?;]+[。！？；!?;]*/g)||[]).map(s=>s.trim()).filter(s=>/[一-鿿\d]/.test(s));
     if(!parts.length)return;
-    const seq=++speakSeq,base=S.pitch||1.35,rate=Math.min(1.4,Math.max(.6,Number(S.rate)||1));
+    const seq=++speakSeq,base=S.pitch||1.25,rate=Math.min(1.5,Math.max(.6,Number(S.rate)||1.2)); // 預設 1.2 倍,比一般語音快一些
     const say=i=>{
       if(seq!==speakSeq)return;
       if(i>=parts.length){talking(false);if(done)done();return}
@@ -632,15 +639,40 @@ function matchOpt(texts,q){
   for(const h of hs){if(ORD[h]!=null&&ORD[h]<q.opts.length)return ORD[h]}
   return -1;
 }
-const PRAISE=['答對了，太棒了！','好厲害喔！','答對啦！你真聰明！','沒錯，就是這個！','太讚了，繼續加油！'];
+const PRAISE=['答對了，太棒了！','好厲害喔！','答對啦！你真聰明！','沒錯，就是這個！','太讚了，繼續加油！','哇，你好認真，答對了！','你的腦袋好靈光喔！','完全正確，給你拍拍手！'];
+const SOFT=['差一點點！','沒關係！','別擔心！','再接再厲！'];
 function fbSay(q,good){
-  if(good)return pick(PRAISE);
+  if(good)return (X&&X.extra?X.extra:'')+pick(PRAISE);
   const ans=q.type==='order'?q.it.accept[0]:q.it.options[q.it.answer];
-  return '再接再厲！正確答案是：'+(/[一-鿿]/.test(ans)?ans:'看畫面上亮起來的那一個')+'。'+exPlain(q.it.why);
+  return pick(SOFT)+'正確答案是：'+(/[一-鿿]/.test(ans)?ans:'看畫面上亮起來的那一個')+'。'+exPlain(q.it.why);
 }
 function readQ(q){ // 出現新題目時自動唸:第一題短文會先唸短文
   if(!S.voice)return;
   speak((q.pass&&/q0$/.test(q.key)?'請先讀短文。'+q.passSay+'。':'')+q.say);
+}
+/* ===== 情緒價值:慶祝動畫、貼紙冊、小雞老師的鼓勵話 ===== */
+const STK=['🦄','🐼','🐨','🦊','🐯','🦁','🐮','🐷','🐸','🐙','🦋','🐞','🐢','🐬','🐳','🦖','🦒','🦓','🐘','🦜','🦉','🐧','🐝','🌈'];
+function giveSticker(){ // 每完成一回就得到一張新貼紙(不管考幾分,努力就有獎勵)
+  const left=STK.map((_,i)=>i).filter(i=>!S.stk.includes(i));
+  if(!left.length)return null;
+  const i=pick(left);S.stk.push(i);save();return STK[i];
+}
+const stkHtml=s=>s?`<div style="font-size:24px;margin-top:8px">🎁 得到新貼紙！<span style="font-size:48px;vertical-align:middle">${s}</span><div class="tip">貼紙冊 ${S.stk.length} / ${STK.length}（在「成就」裡看）</div></div>`:'';
+function cheer(emoji,title,sub){ // 畫面中間跳出一張慶祝卡,幾秒後自己消失
+  const d=document.createElement('div');d.className='cheer';
+  d.innerHTML=`<div class="ce">${emoji}</div><div class="ct">${esc(title)}</div>${sub?`<div class="cs">${esc(sub)}</div>`:''}`;
+  document.body.appendChild(d);burst(18);setTimeout(()=>d.remove(),2300);
+}
+function encourage(score,prev){ // 小雞老師的話:分數低也先肯定努力;比上次好就特別稱讚
+  const T=score>=90?['你今天表現得超棒，我好驕傲！','你真的是國語小天才！']:score>=70?['你很認真，我看到你的進步了！','再加一點點，就會更棒喔！']:score>=50?['你有完成，這就很勇敢了！','錯的題目是讓你變聰明的機會喔！']:['你有認真寫完，這就是最棒的努力！','每練習一次，你就更厲害一點點！'];
+  const t=pick(T),prog=prev!=null&&score>prev?'比上次進步了 '+(score-prev)+' 分！':'';
+  return {say:t+(prog?prog.replace(/ /g,''):''),html:`<div class="moral" style="text-align:left;margin-top:10px;font-size:22px">💌 小雞老師說：${esc(t)}${prog?'<br>📈 '+prog:''}</div>`};
+}
+function chatLine(){
+  const L=[...CHAT,'你已經答對 '+S.corr+' 題了，好厲害！','不管對或錯，願意練習就是最棒的！','我最喜歡看你認真的樣子了！','今天也一起加油吧，我陪你！'];
+  if(S.streak>=2)L.push('你連續 '+S.streak+' 天來玩了，太棒了！');
+  if(S.stk.length)L.push('你的貼紙冊已經有 '+S.stk.length+' 張貼紙了！');
+  return pick(L);
 }
 const micHint=q=>q.lab?'說「蘋果、橘子」或選項的字':'說選項的字，或說「第一個、第二個」';
 const micBtn=on=>{const m=$('#mic');if(m)m.classList.toggle('on',on)};
@@ -697,7 +729,7 @@ const spkBtn=t=>`<button class="spk" data-a="say" data-t="${esc(t)}">🔊</butto
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate()};
 const CHAT=['今天也來學一個成語吧！','答對一題，就有水滴澆花喔！','農場的作物在等你澆水！','點一朵花，可以重溫那個故事。','今日大魔王敢不敢挑戰？','成語裡藏著好多有趣的故事。','錯的題目多練幾次就會了！'];
 function chatSay(){
-  const b=$('#bub');if(!b)return;const t=S.name+','+pick(CHAT);b.textContent=t;sfx('coin');
+  const b=$('#bub');if(!b)return;const t=S.name+','+chatLine();b.textContent=t;sfx('coin');
   const m=document.querySelector('.mascot');if(m){m.classList.remove('jump');void m.offsetWidth;m.classList.add('jump')}
   speak(t);
 }
@@ -720,7 +752,7 @@ function renderHome(){
       </div>
     </div>
     <div class="grade">${[1,2,3].map(n=>`<button data-a="grade" data-g="${n}" class="${g===n?'on':''}">${zy(GNAME[n][0],GNAME[n][1])}</button>`).join('')}</div>
-    <div class="bubble" id="bub" data-a="chat">${esc(S.name)},${esc(pick(CHAT))}</div>
+    <div class="bubble" id="bub" data-a="chat">${esc(S.name)},${esc(chatLine())}</div>
   </div>
   <div class="menu">
     <button class="tile big" data-a="exam"><span class="ue">📝</span><span>${zy('考試測驗','ㄎㄠˇ ㄕˋ ㄘㄜˋ ㄧㄢˋ')}<br><small class="tip">模擬考 ・ 分類練習 ・ 錯題本</small></span>${wr?`<span class="dot">${wr}</span>`:''}</button>
@@ -1465,6 +1497,11 @@ function exRecord(q,good){
     st.c++;X.ok++;X.combo++;X.gain=2+(X.combo>=3?1:0);X.coins+=X.gain;X.water+=1;
     S.coins+=X.gain;S.water+=1;S.corr++;gainXp(1);bump('exam');
     S.exam.wrong=S.exam.wrong.filter(k=>k!==q.key);sfx('ok');burst(12);
+    X.extra='';
+    if([10,25,50,100,200,500,1000].includes(S.corr)){cheer('🏅','答對 '+S.corr+' 題了！','你越來越厲害了！');X.extra='你已經答對'+S.corr+'題了，好厲害！'}
+    else if([3,5,10].includes(X.combo)){cheer('🔥',X.combo+' 連對！','太厲害了，繼續加油！');X.extra=X.combo+'連對！'}
+    else if(X.lastBad){cheer('💪','跌倒了又站起來！','你好勇敢，答對了！');X.extra='跌倒了又站起來，好勇敢！'}
+    X.lastBad=false;
   }else{
     st.w++;X.combo=0;X.wrong.push(q.key);
     if(!S.exam.wrong.includes(q.key)){
@@ -1472,7 +1509,7 @@ function exRecord(q,good){
       const mine=S.exam.wrong.filter(k=>k.startsWith(q.g+':')); // 每個年級各自保留最近 60 題錯題
       if(mine.length>60){const drop=new Set(mine.slice(0,mine.length-60));S.exam.wrong=S.exam.wrong.filter(k=>!drop.has(k))}
     }
-    sfx('bad');
+    sfx('bad');X.lastBad=true;X.extra='';
   }
   X.good=good;X.done=true;save();
 }
@@ -1494,6 +1531,7 @@ function xNext(){
 }
 function finishEx(){
   const n=X.qs.length,ok=X.ok,score=Math.round(ok/n*100);
+  const prevM=X.mode==='mock'?(S.exam.hist.filter(h=>h.g===X.g).slice(-1)[0]||{}).score:null;
   let bonus=0,msg='';
   if(X.mode==='mock'){
     bonus=score>=90?30:score>=80?20:score>=60?10:3;
@@ -1502,14 +1540,16 @@ function finishEx(){
     gainXp(10);bump('mock');S.rounds++;
   }else if(ok===n){bonus=10}
   S.coins+=bonus;save();sfx('win');burst(24);
-  const stars=score>=90?3:score>=70?2:score>=50?1:0;
+  const stars=score>=90?3:score>=70?2:score>=50?1:1;
   const wrongKeys=[...new Set(X.wrong)];
+  const E1=encourage(score,prevM),stk=giveSticker(),encHtml=E1.html+stkHtml(stk);
   show('xres',`<div class="card" style="text-align:center">
     <div class="mascot jump" style="font-size:90px">${score>=90?'🏆':score>=70?'🌟':score>=50?'🌱':'💪'}</div>
     <h1>${X.mode==='mock'?score+' 分':ok+' / '+n}</h1>
     <div style="font-size:44px">${'⭐'.repeat(stars)}${'☆'.repeat(3-stars)}</div>
     <div style="font-size:24px">${score>=90?'太棒了！你是國語小天才！':score>=70?'很不錯喔！再加油就滿分！':score>=50?'還可以，錯的題目再練習一下！':'沒關係，多練習就會進步！'} ${msg}</div>
     <div style="font-size:26px;margin-top:6px">答對 ${ok} / ${n} 題 ・ 💧 +${X.water} ・ 🪙 +${X.coins+bonus}${bonus?`(${X.mode==='mock'?'考試':'全對'}獎勵 +${bonus})`:''}</div>
+    ${encHtml}
     ${wrongKeys.length?`<div class="moral" style="text-align:left">📌 這幾題要再複習：${wrongKeys.map(k=>{const q=exFind(k);return q?`<div style="font-size:20px;margin-top:4px;font-weight:500">・${esc(exPlain(q.it.stem))} → <b>${esc(q.it.type==='order'?q.it.accept[0]:q.it.options[q.it.answer])}</b></div>`:''}).join('')}</div>`:''}
   </div>
   <div class="row center">
@@ -1517,14 +1557,14 @@ function finishEx(){
     <button class="btn purple" data-a="${X.mode==='mock'?'mock':X.mode==='wrong'?'wrongbook':X.mode==='voice'?'vquiz':'extype'}" data-t="${X.arg||''}">再來一次</button>
     <button class="btn ghost" data-a="exam">📝</button>
   </div>`);
-  speak(`${X.mode==='mock'?score+'分。':''}答對${ok}題，一共${n}題。${score>=90?'太棒了，你是國語小天才！':score>=70?'很不錯喔！再加油就滿分！':score>=50?'還可以，錯的題目再練習一下！':'沒關係，多練習就會進步！'}`);
+  speak(`${X.mode==='mock'?score+'分。':''}答對${ok}題，一共${n}題。${score>=90?'太棒了，你是國語小天才！':score>=70?'很不錯喔！再加油就滿分！':score>=50?'還可以，錯的題目再練習一下！':'沒關係，多練習就會進步！'}${E1.say}${stk?'得到一張新貼紙！':''}`);
 }
 
 /* ===== 段考測驗：固定兩回考卷，20 題全部寫完才交卷、才看對錯和解答 ===== */
 let MD=null;
 const mAns=k=>{const q=MD.qs[k],a=MD.ans[k];return q.type==='order'?Array.isArray(a)&&a.length===q.words.length:Number.isInteger(a)};
 function renderMidHub(){
-  const stars=s=>s>=90?'⭐⭐⭐':s>=70?'⭐⭐☆':s>=50?'⭐☆☆':'☆☆☆';
+  const stars=s=>s>=90?'⭐⭐⭐':s>=70?'⭐⭐☆':s>=50?'⭐☆☆':'⭐☆☆';
   show('midhub',`${topBar('🏫 '+zy('段考測驗','ㄉㄨㄢˋ ㄎㄠˇ ㄘㄜˋ ㄧㄢˋ'))}
   <div class="mhead"><span class="mascot">🐥</span><div class="bubble sp" style="font-size:24px">要挑戰哪一回呢？加油！</div></div>
   <div class="card"><div class="tip" style="font-size:20px;line-height:1.8">📋 每回 20 題，裡面有 🔥 挑戰題，也有 🍀 暖身題。<br>✏️ 20 題都寫完才能 📮 交卷，交卷後才看分數和解答。<br>🔄 寫的時候可以回頭檢查、修改答案。</div></div>
@@ -1593,7 +1633,8 @@ function submitMid(force){
   const bonus=Math.round((score>=90?40:score>=80?25:score>=60?12:4)/(again?2:1)),coins=Math.round(ok*2/(again?2:1))+bonus,water=Math.floor(ok/(again?4:2));
   S.exam.mid[MD.p.id]={best:Math.max(old.best,score),n:old.n+1,last:score,d:today()};
   S.coins+=coins;S.water+=water;S.corr+=ok;S.rounds++;gainXp(10+Math.floor(ok/4));bump('mock');save();sfx('win');burst(24);
-  const z=MD.p.g<=2,stars=score>=90?3:score>=70?2:score>=50?1:0;
+  const E1=encourage(score,old.n?old.last:null),stk=giveSticker(),encHtml=E1.html+stkHtml(stk);
+  const z=MD.p.g<=2,stars=score>=90?3:score>=70?2:score>=50?1:1;
   show('mres',`<div class="card" style="text-align:center">
     <div class="mascot jump" style="font-size:90px">${score>=90?'🏆':score>=70?'🌟':score>=50?'🌱':'💪'}</div>
     <h1>${score} 分 ${nb&&old.n?'🎉':''}</h1>
@@ -1601,6 +1642,7 @@ function submitMid(force){
     <div style="font-size:24px">${score>=90?'太棒了！段考難題都被你打敗了！':score>=70?'很不錯喔！難題也答對不少！':score>=50?'還可以，看看下面錯的題目，再考一次會更好！':'沒關係，看完解答再挑戰一次吧！'}${nb&&old.n?'（新紀錄！）':''}</div>
     <div style="font-size:24px;margin-top:6px">${MD.p.name}：答對 ${ok} / ${n} 題</div>
     <div class="tip" style="font-size:20px">較難題 ${hOk} / ${hard.length} ・ 簡單題 ${eOk} / ${easy.length}</div>
+    ${encHtml}
     <div style="font-size:24px;margin-top:4px">💧 +${water} ・ 🪙 +${coins}（含考試獎勵 ${bonus}）${again?'<div class="tip">今天已經考過這一回，獎勵減半喔</div>':''}</div>
   </div>
   <h2 style="margin-top:14px">${z?zy('題目解答','ㄊㄧˊ ㄇㄨˋ ㄐㄧㄝˇ ㄉㄚˊ'):'題目解答'}</h2>
@@ -1616,7 +1658,7 @@ function submitMid(force){
     <button class="btn purple" data-a="midstart" data-id="${MD.p.id}">再考一次</button>
     <button class="btn ghost" data-a="midhub">🏫</button>
   </div>`);
-  speak(`考完了！${score}分，答對${ok}題。${score>=90?'太棒了，你是國語小天才！':score>=70?'很不錯喔！':score>=50?'還可以，看看錯的題目，再考一次會更好！':'沒關係，看完解答再挑戰一次吧！'}`);
+  speak(`考完了！${score}分，答對${ok}題。${score>=90?'太棒了，你是國語小天才！':score>=70?'很不錯喔！':score>=50?'還可以，看看錯的題目，再考一次會更好！':'沒關係，看完解答再挑戰一次吧！'}${E1.say}${stk?'得到一張新貼紙！':''}`);
 }
 
 /* ===== 語音問答:小老師唸題目和選項 → 自動開始聽 → 說答案 → 馬上回應 =====
@@ -1999,7 +2041,10 @@ function renderAch(){
   <div class="tip" style="text-align:center;margin-bottom:10px">已拿到 ${n} / ${ACH.length} 個徽章，每個都有金幣獎勵！</div>
   <div class="book">${ACH.map(a=>S.ach[a.id]?
     `<div class="bk" style="font-size:20px"><span class="ue">${a.e}</span>${a.n}<small style="color:#e59a00">✅ 🪙${a.c}</small></div>`:
-    `<div class="bk lock" style="font-size:20px"><span class="ue">🔒</span>${a.n}<small>獎勵 🪙${a.c}</small></div>`).join('')}</div>`);
+    `<div class="bk lock" style="font-size:20px"><span class="ue">🔒</span>${a.n}<small>獎勵 🪙${a.c}</small></div>`).join('')}</div>
+  <h2 style="margin-top:16px">🎁 貼紙冊 ${S.stk.length} / ${STK.length}</h2>
+  <div class="tip" style="margin-bottom:6px">每完成一回考試或語音問答，就會得到一張新貼紙！</div>
+  <div class="stks">${STK.map((s,i)=>`<span class="${S.stk.includes(i)?'':'no'}">${S.stk.includes(i)?s:'❔'}</span>`).join('')}</div>`);
 }
 
 /* ===== 成語圖鑑 ===== */
@@ -2055,8 +2100,8 @@ function renderSettings(){
   openModal(`<h2>⚙️ 設定</h2>
   <div class="row" style="margin-bottom:10px"><button class="btn ${S.sound?'mint':'ghost'}" data-a="tsound">${S.sound?'🔔 音效 開':'🔕 音效 關'}</button>
   <button class="btn ${S.voice?'mint':'ghost'}" data-a="tvoice">${S.voice?'🗣️ 自動唸題 開':'🤐 自動唸題 關'}</button></div>
-  <div class="row" style="margin-bottom:10px"><button class="btn small ghost" data-a="vtest">🔊 試聽</button><button class="btn small ghost" data-a="vrate">語速：${(Number(S.rate)||1)<1?'慢':(Number(S.rate)||1)>1?'快':'普通'}</button></div>
-  ${zhVoices().length>1?`<div class="row" style="margin-bottom:10px"><select id="vsel" style="font:inherit;padding:6px;max-width:100%">${zhVoices().map(v=>`<option ${v.name===(bestVoice()||{}).name?'selected':''}>${esc(v.name)}</option>`).join('')}</select></div>`:''}
+  <div class="row" style="margin-bottom:10px"><button class="btn small ghost" data-a="vtest">🔊 試聽</button><button class="btn small ghost" data-a="vrate">語速：${(Number(S.rate)||1.2)<1.1?'慢':(Number(S.rate)||1.2)>1.3?'快':'普通'}</button></div>
+  ${zhVoices().length>1?`<div class="row" style="margin-bottom:10px"><select id="vsel" style="font:inherit;padding:6px;max-width:100%">${zhVoices().sort((a,b)=>/TW|Hant/i.test(b.lang)-/TW|Hant/i.test(a.lang)).map(v=>`<option value="${esc(v.name)}" ${v.name===(bestVoice()||{}).name?'selected':''}>${esc(v.name)}${/TW|Hant/i.test(v.lang)?'（台灣）':''}</option>`).join('')}</select></div>`:''}
   <div class="tip">答對題數：${S.corr}　收成次數：${S.harv}　完成回合：${S.rounds}</div>
   <div class="row" style="margin-top:14px"><button class="btn purple small" data-a="parent">🔒 爸媽專區</button><span class="sp"></span><button class="btn small" data-a="close">關閉</button></div>`);
 }
@@ -2141,7 +2186,7 @@ document.addEventListener('click',e=>{
     case 'vrep':return vqRep();
     case 'vnext':return vqNext();
     case 'vtest':return speak('你好，我是小雞老師，我們一起學國語吧！',true);
-    case 'vrate':{const L=[.85,1,1.15];S.rate=L[(L.indexOf(Number(S.rate)||1)+1)%3];save();renderSettings();return speak('這是我現在的速度。',true)}
+    case 'vrate':{const L=[1,1.2,1.4],cur=Number(S.rate)||1.2,k=L.reduce((b,v,i)=>Math.abs(v-cur)<Math.abs(L[b]-cur)?i:b,0);S.rate=L[(k+1)%3];save();renderSettings();return speak('這是我現在的速度。',true)}
     case 'quiz':return startQuiz('normal');
     case 'retry':return startQuiz('retry');
     case 'boss':return startQuiz('boss');
@@ -2179,7 +2224,10 @@ document.addEventListener('click',e=>{
     case 'xok':return xOrderOk();
     case 'midhub':return renderMidHub();
     case 'midstart':return startMid(d.id);
-    case 'mpick':if(MD&&scr==='mq'){MD.ans[MD.i]=+d.i;sfx('coin');renderMQ(true)}return;
+    case 'mpick':if(MD&&scr==='mq'){const was=mAns(MD.i);MD.ans[MD.i]=+d.i;sfx('coin');renderMQ(true);
+      if(!was){const dn=MD.qs.filter((_,k)=>mAns(k)).length;
+        if(dn===Math.ceil(MD.qs.length/2))speak('過半了，你好棒，繼續加油！');
+        else if(dn===MD.qs.length){speak('全部寫完了！太厲害了，檢查一下就可以交卷囉！');cheer('🥳','全部寫完啦！','你好有毅力！')}}}return;
     case 'mtile':if(MD&&scr==='mq'){const a=MD.ans[MD.i];MD.ans[MD.i]=(Array.isArray(a)?a:[]).concat(+d.i);sfx('coin');renderMQ(true)}return;
     case 'mundo':if(MD&&scr==='mq'){MD.ans[MD.i]=(MD.ans[MD.i]||[]).filter((_,k)=>k!==+d.k);renderMQ(true)}return;
     case 'mclear':if(MD&&scr==='mq'){MD.ans[MD.i]=[];renderMQ(true)}return;
